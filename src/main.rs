@@ -115,26 +115,27 @@ fn main() {
         let preempt = 500;
         let fado = 100;
 
-        if  i < bm.hit_objects.len() {
-            while bm.hit_objects[i].time <= elapsed_ms + preempt {
-                let ho = &bm.hit_objects[i];
-                if ho.obj_type.contains(HitObjectType::NEW_COMBO) {
-                    cbi += 1;
-                    if cbi >= bm.colours.combos.len() {
-                        cbi = 0
-                    }
+        while i < bm.hit_objects.len() && bm.hit_objects[i].time <= elapsed_ms + preempt {
+            let ho = &bm.hit_objects[i];
+            if ho.obj_type.contains(HitObjectType::NEW_COMBO) {
+                cbi += 1;
+                if cbi >= bm.colours.combos.len() {
+                    cbi = 0
                 }
-                // if ho.obj_type.contains(HitObjectType::CIRCLE) {
-                    queue.push_front((ho, cbi));
-                // }
-                i += 1;
             }
-        } else {
-            break;
+            // if ho.obj_type.contains(HitObjectType::CIRCLE) {
+                queue.push_front((ho, cbi));
+            // }
+            i += 1;
         }
 
         while match queue.back() {Some(ho) => ho.0.time + fado < elapsed_ms, None => false} {
             queue.pop_back();
+        }
+
+        if queue.len() == 0 && i >= bm.hit_objects.len() {
+            println!("Song ended!");
+            break;
         }
 
         unsafe {
@@ -143,7 +144,7 @@ fn main() {
             
             for ho in queue.iter() {
                 let x = ho.0.x as f32 / 320.0 - 1.0;
-                let y = ho.0.y as f32 / 240.0 - 1.0;
+                let y = 1.0 - ho.0.y as f32 / 240.0;
                 let mat: Mat4 = [
                     scale / 640.0, 0.0, 0.0, x, 0.0, scale / 480.0, 0.0, y, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                 ];
