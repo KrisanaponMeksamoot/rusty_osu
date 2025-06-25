@@ -3,17 +3,12 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
     thread,
-    time::{Instant},
+    time::Instant,
 };
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use symphonia::{
-    core::{
-        audio::SampleBuffer,
-        codecs::DecoderOptions,
-        io::MediaSourceStream,
-        probe::Hint,
-    },
+    core::{audio::SampleBuffer, codecs::DecoderOptions, io::MediaSourceStream, probe::Hint},
     default::{get_codecs, get_probe},
 };
 

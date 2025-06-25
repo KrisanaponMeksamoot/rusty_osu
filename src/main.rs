@@ -9,7 +9,7 @@ use std::{collections::VecDeque, path::Path};
 
 use glfw::{Action, Context, Key};
 
-use crate::resource::osufile::HitObjectType;
+use crate::{graphics::circle, resource::osufile::HitObjectType};
 
 fn main() {
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
@@ -28,11 +28,20 @@ fn main() {
     vertex_shader
         .init(
             r#"#version 330 core
-  layout (location = 0) in vec3 pos;
+  layout (location = 0) in vec2 pos;
+  layout (location = 1) in vec4 vcol;
+  layout (location = 2) in float vrat;
+  layout (location = 3) in float vca;
   uniform mat4 u_mat;
 
+  out vec4 col;
+  out float rat;
+  out float ca;
   void main() {
-    gl_Position = u_mat * vec4(pos.x, pos.y, pos.z, 1.0);
+    col = vcol;
+    rat = vrat;
+    ca = vca;
+    gl_Position = u_mat * vec4(pos, 0.0, 1.0);
   }
 "#,
         )
@@ -43,11 +52,14 @@ fn main() {
     fragment_shader
         .init(
             r#"#version 330 core
-  uniform vec4 u_color;
+  in vec4 col;
+  in float rat;
+  in float ca;
+  uniform vec3 u_color;
   out vec4 final_color;
 
   void main() {
-    final_color = u_color;
+    final_color = vec4(u_color, ca) * rat + col * (1 - rat);
   }
 "#,
         )
@@ -70,7 +82,6 @@ fn main() {
 
     window.glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
 
-    type Mat4 = [f32; 16];
     shader_program.use_program();
     let u_mvp = shader_program.get_uniform_location(b"u_mat\0".as_ptr() as *const _);
     let u_col = shader_program.get_uniform_location(b"u_color\0".as_ptr() as *const _);
@@ -101,6 +112,10 @@ fn main() {
     let mut i = 0;
     let mut cbi = 0;
 
+    unsafe {
+        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+    }
+
     while !window.should_close() {
         let elapsed_ms = player.get_time_ms() as i32 - bm.general.audio_lead_in;
         let preempt = 500;
@@ -130,23 +145,21 @@ fn main() {
         }
 
         unsafe {
-            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             
             for ho in queue.iter() {
                 let x = ho.0.x as f32 / 320.0 - 1.0;
                 let y = 1.0 - ho.0.y as f32 / 240.0;
-                let mat: Mat4 = [
-                    scale / 640.0, 0.0, 0.0, x, 0.0, scale / 480.0, 0.0, y, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                ];
-                gl::UniformMatrix4fv(u_mvp, 1, gl::TRUE, mat.as_ptr());
+                circle::calc_mat(u_mvp, x, y, scale);
                 let col = if ho.0.time < elapsed_ms {
                     (255, 255, 255)
                 } else {
                     bm.colours.combos[ho.1]
                 };
-                let col = [col.0 as f32 / 255.0, col.1 as f32 / 255.0, col.2 as f32 / 255.0, 0.5];
-                gl::Uniform4fv(u_col, 1, col.as_ptr());
+                let col = [col.0 as f32 / 255.0, col.1 as f32 / 255.0, col.2 as f32 / 255.0];
+                gl::Uniform3fv(u_col, 1, col.as_ptr());
                 buf_cir.draw();
             }
         }
