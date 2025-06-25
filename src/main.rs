@@ -5,10 +5,9 @@ extern crate glfw;
 pub mod graphics;
 pub mod resource;
 
-use std::{collections::VecDeque, fs::File, io::BufReader, path::Path, thread::sleep, time::{Duration, Instant}};
+use std::{collections::VecDeque, path::Path};
 
 use glfw::{Action, Context, Key};
-use rodio::{Decoder, OutputStream, Sink};
 
 use crate::resource::osufile::HitObjectType;
 
@@ -76,7 +75,7 @@ fn main() {
     let u_mvp = shader_program.get_uniform_location(b"u_mat\0".as_ptr() as *const _);
     let u_col = shader_program.get_uniform_location(b"u_color\0".as_ptr() as *const _);
     
-    let p = Path::new("path to .osu file");
+    let p = Path::new("test_res/UPLIFT SPICE - Omega Rhythm/UPLIFT SPICE - Omega Rhythm (Jemmmmy) [lightr's Insane].osu");
     let bm: resource::osufile::OsuFile = resource::osufile::parse_osu(&p);
     let bmn = bm.metadata.title;
     let bma = bm.metadata.artist;
@@ -86,32 +85,24 @@ fn main() {
     let hr = bm.difficulty.hp_drain_rate;
     let od = bm.difficulty.overall_difficulty;
     println!("AR: {ar}, CS: {cs}, HR: {hr}, OD: {od}");
+    
+    let scale: f32 = 54.4 - 4.48 * cs;
 
-    let p_aud = p.parent().unwrap().join(bm.general.audio_filename);
+    let p_aud = p.parent().unwrap().join(bm.general.audio_filename).as_path().to_owned();
     let p_aud_s = p_aud.to_str().unwrap();
     println!("Audio file: {p_aud_s}");
 
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let sink = Sink::try_new(&stream_handle).unwrap();
-    let file = File::open(p_aud).unwrap();
-    let source = Decoder::new(BufReader::new(file)).unwrap();
+    let (mut player, _handle) = resource::audio::AudioPlayer::new_async(&p_aud);
 
-    let scale: f32 = 54.4 - 4.48 * cs;
-
-    sink.append(source);
-    while sink.len() == 0 {
-        sleep(Duration::from_millis(1));
-    }
-
-    let start = Instant::now();
-
+    player.start();
+    player.play();
 
     let mut queue = VecDeque::new();
     let mut i = 0;
     let mut cbi = 0;
 
     while !window.should_close() {
-        let elapsed_ms = start.elapsed().as_millis() as i32 - bm.general.audio_lead_in;
+        let elapsed_ms = player.get_time_ms() as i32 - bm.general.audio_lead_in;
         let preempt = 500;
         let fado = 100;
 
@@ -139,7 +130,7 @@ fn main() {
         }
 
         unsafe {
-            gl::ClearColor(2.0, 0.3, 0.3, 1.0);
+            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             
             for ho in queue.iter() {
@@ -154,7 +145,7 @@ fn main() {
                 } else {
                     bm.colours.combos[ho.1]
                 };
-                let col = [col.0 as f32 / 255.0, col.1 as f32 / 255.0, col.2 as f32 / 255.0, 1.0];
+                let col = [col.0 as f32 / 255.0, col.1 as f32 / 255.0, col.2 as f32 / 255.0, 0.5];
                 gl::Uniform4fv(u_col, 1, col.as_ptr());
                 buf_cir.draw();
             }
